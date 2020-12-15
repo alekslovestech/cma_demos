@@ -3,12 +3,7 @@ import chalk from "chalk";
 import * as dotenv from "dotenv";
 import { createClient } from "contentful-management";
 
-import {
-  Environment,
-  Entry,
-  Collection,
-  EntryProps,
-} from "contentful-management/types";
+import { Environment, Entry } from "contentful-management/types";
 
 const argv = yargs
   .usage("Archive entries of a particular type: $0 [options]")
@@ -17,10 +12,9 @@ const argv = yargs
     type: "string",
     demand: true,
   })
-  .options("ageinweeks", {
+  .options("ageindays", {
     describe: "remove all entries older than this age",
     type: "number",
-    default: 10,
   }).argv;
 
 async function IsAlive(env: Environment, entry: Entry): Promise<boolean> {
@@ -35,9 +29,10 @@ async function IsAlive(env: Environment, entry: Entry): Promise<boolean> {
 
   //referenced only by other archived entries
   if (entriesReferencingMe.items.every((m) => m.isArchived())) {
+    const entryNoun = numReferences === 1 ? "entry" : "entries";
     console.log(
       chalk.cyanBright(
-        `${entryId}: referenced by ${numReferences} Archived entries!!`
+        `${entryId}: referenced by ${numReferences} Archived ${entryNoun}!!`
       )
     );
     return false;
@@ -47,22 +42,23 @@ async function IsAlive(env: Environment, entry: Entry): Promise<boolean> {
   return true;
 }
 
-function AgeInWeeks(entry: Entry): number {
+function AgeInDays(entry: Entry): number {
   const lastUpdated: string = entry.sys.updatedAt;
   const now = new Date().getTime();
   const lastUpdatedTime = new Date(lastUpdated).getTime();
   const entryAgeInSeconds = (now - lastUpdatedTime) / 1000.0;
-  const entryAgeInWeeks = Math.floor(entryAgeInSeconds / (3600 * 24 * 7));
-  return entryAgeInWeeks;
+  const entryAgeInDays = entryAgeInSeconds / (3600 * 24);
+  return entryAgeInDays;
 }
 
 async function ArchiveDeadEntriesOfType(
   env: Environment,
-  typeId: string
+  typeId: string,
+  ageInDaysThreshold: number
 ): Promise<void> {
-  console.log(`Deleting entries of type ${typeId}`);
-  const all_entries: Collection<Entry, EntryProps> = await env.getEntries({
-    content_type: this.typeId,
+  console.log(`Archiving entries of type '${typeId}'`);
+  const all_entries = await env.getEntries({
+    content_type: typeId,
     limit: 1000,
   });
   for (const entry of all_entries.items) {
@@ -71,44 +67,46 @@ async function ArchiveDeadEntriesOfType(
     const isAlive = await IsAlive(env, entry);
     if (isAlive) continue;
 
-    const ageInWeeks = AgeInWeeks(entry);
-    const isOld = ageInWeeks >= ageInWeeksThreshold;
+    const ageInDays = AgeInDays(entry);
+    console.log(`actual age = ${ageInDays}, threshold=${ageInDaysThreshold}`);
+    const isOld = ageInDays >= ageInDaysThreshold;
     if (isOld) {
       console.log(
-        `${entryId}: archiving old and dead entry (${ageInWeeks} weeks) `
+        `${entryId}: archiving old and dead entry (${ageInDays} days) `
       );
       let unpublishedEntry = entry;
       if (entry.isPublished()) {
         unpublishedEntry = await entry.unpublish();
       }
       if (!unpublishedEntry.isArchived()) {
+        console.log(`archiving ${unpublishedEntry.sys.id}`);
         await unpublishedEntry.archive();
       }
+    } else {
+      console.log(
+        chalk.yellow(
+          `${entryId}: Keeping dead entry because it is only ${ageInDays} days old!`
+        )
+      );
     }
-    console.log(
-      chalk.yellow(
-        `${entryId}: Keeping dead entry because it is only ${ageInWeeks} weeks old!`
-      )
-    );
   }
 }
 
 dotenv.config();
 const spaceId = process.env["CONTENTFUL_SPACE"];
 const envId = process.env["CONTENTFUL_ENV"];
-const mgtToken = process.env["CONTENTFUL_MANAGEMENT_ACCESS_TOKEN"];
+const mgtToken = process.env["CMA_TOKEN"];
 
-const ageInWeeksThreshold = argv["ageinweeks"];
+const ageInDaysThreshold = argv["ageindays"];
 const typeId = argv["type-id"];
 const client = createClient({
   accessToken: mgtToken,
 });
 
-console.log({ client });
 client
   .getSpace(spaceId)
   .then((space) => space.getEnvironment(envId))
   .then((env) => {
-    ArchiveDeadEntriesOfType(env, typeId);
+    ArchiveDeadEntriesOfType(env, typeId, ageInDaysThreshold);
   })
   .catch(console.error);
