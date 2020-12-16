@@ -7,6 +7,11 @@ import { Environment, Entry } from "contentful-management/types";
 
 const argv = yargs
   .usage("Archive entries of a particular type: $0 [options]")
+  .options("environment-id", {
+    describe: "environment id",
+    type: "string",
+    demand: true,
+  })
   .options("type-id", {
     describe: "type id for entries we want to count",
     type: "string",
@@ -94,9 +99,9 @@ async function ArchiveDeadEntriesOfType(
 
 dotenv.config();
 const spaceId = process.env["CONTENTFUL_SPACE"];
-const envId = process.env["CONTENTFUL_ENV"];
 const mgtToken = process.env["CMA_TOKEN"];
 
+const envId = argv["environment-id"];
 const ageInDaysThreshold = argv["ageindays"];
 const typeId = argv["type-id"];
 const client = createClient({
