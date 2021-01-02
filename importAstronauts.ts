@@ -3,12 +3,7 @@ import chalk from "chalk";
 import * as dotenv from "dotenv";
 import * as fetch from "node-fetch";
 import { createClient } from "contentful-management";
-
-import {
-  Environment,
-  Entry,
-  CreateEntryProps,
-} from "contentful-management/types";
+import { Environment, CreateEntryProps } from "contentful-management/types";
 import { SetFieldValue } from "./entryPropUtils";
 
 const argv = yargs
@@ -35,8 +30,7 @@ async function ImportAstronauts(env: Environment) {
   const people = astros.people;
   for (const person of people) {
     let newEntry: CreateEntryProps = { fields: {} };
-    const craft = person["craft"];
-    const name = person["name"];
+    const { craft, name } = person;
     SetFieldValue(newEntry, "entryTitle", `${craft}: ${name}`);
     SetFieldValue(newEntry, "craft", craft);
     SetFieldValue(newEntry, "name", name);
