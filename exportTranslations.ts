@@ -45,21 +45,20 @@ async function ExportTranslations(
   await fieldCache.Init();
   const traversalService = new TraversalService(env, fieldCache);
   await traversalService.TraverseFromURL(initial_url);
+
   let serEntries = [];
-  for (const id in traversalService.traversedEntries) {
-    const oneEntry = traversalService.traversedEntries[id];
+  for (const oneEntry of traversalService.traversedEntries) {
     const typeId = getTypeIdFromEntry(oneEntry);
     const localizableTextFields = fieldCache.GetLocalizableTextFields(typeId);
-    let serEntry = { fields: {}, entryId: id, typeId: typeId };
-    const localizableFieldIds = localizableTextFields.map((m) => m.id);
-    console.log({ localizableFieldIds });
-    for (const fieldId of localizableFieldIds) {
+    const localizableFieldIds = localizableTextFields.map((field) => field.id);
+    let serEntry = { fields: {}, entryId: oneEntry.sys.id, typeId: typeId };
+    localizableFieldIds.forEach((fieldId) => {
       const fieldValue = GetFieldValue(oneEntry, fieldId, locale);
       serEntry.fields[fieldId] = fieldValue;
-    }
+    });
     serEntries.push(serEntry);
   }
-  const fname = `exported_content_${locale}.json`;
+  const fname = `${initial_url} _${locale}.json`;
   fs.writeFileSync(fname, JSON.stringify(serEntries, null, 2));
 }
 

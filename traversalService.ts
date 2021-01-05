@@ -7,30 +7,27 @@ import {
   getTypeIdFromEntry,
 } from "./entryPropUtils";
 
-interface IHash {
-  [id: string]: Entry;
-}
-
 export class TraversalService {
-  public readonly traversedEntries: IHash;
+  public readonly traversedEntries: Entry[];
   constructor(
     private env: Environment,
     private fieldCache: ContentTypeFieldCache
   ) {
-    this.traversedEntries = {};
+    this.traversedEntries = [];
   }
+
   async Traverse(entry: Entry) {
     const entryId = entry.sys.id;
     const entryTypeId = getTypeIdFromEntry(entry);
     const traversableFields = this.fieldCache.GetTraversableFields(entryTypeId);
 
-    if (entryId in this.traversedEntries) {
+    if (this.traversedEntries.includes(entry)) {
       console.log(chalk.yellow(`${entryId} already traversed`));
       return;
     }
-    this.traversedEntries[entryId] = entry;
+    this.traversedEntries.push(entry);
     for (const field of traversableFields) {
-      console.log(`found traversable field ${field.id}`);
+      console.log(`${entryId}: traversing field '${field.id}'`);
       const refIds = GetReferenceIdArray(entry, field);
       for (const refId of refIds) {
         const refEntry = await this.env.getEntry(refId);
