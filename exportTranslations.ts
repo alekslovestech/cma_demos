@@ -1,16 +1,12 @@
 import * as yargs from "yargs";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
-import chalk from "chalk";
 
 import { createClient } from "contentful-management";
-import { Entry, Environment } from "contentful-management/types";
-import {
-  GetFieldValue,
-  GetReferenceIdArray,
-  getTypeIdFromEntry,
-} from "./entryPropUtils";
+import { Environment } from "contentful-management/types";
+import { GetFieldValue, getTypeIdFromEntry } from "./entryPropUtils";
 import { ContentTypeFieldCache } from "./contentTypeFieldCache";
+import { TraversalService } from "./traversalService";
 
 const argv = yargs
   .usage("Export translations marked by Editors: $0 [options]")
@@ -39,51 +35,6 @@ const argv = yargs
     type: "string",
     demand: true,
   }).argv;
-interface IHash {
-  [id: string]: Entry;
-}
-
-async function Traverse(
-  env: Environment,
-  entry: Entry,
-  fieldCache: ContentTypeFieldCache,
-  traversedEntries: IHash
-) {
-  const entryId = entry.sys.id;
-  const entryTypeId = getTypeIdFromEntry(entry);
-  const traversableFields = fieldCache.GetTraversableFields(entryTypeId);
-
-  if (entryId in traversedEntries) {
-    console.log(chalk.yellow(`${entryId} already traversed`));
-    return;
-  }
-  traversedEntries[entryId] = entry;
-  for (const field of traversableFields) {
-    console.log(`found traversable field ${field.id}`);
-    const refIds = GetReferenceIdArray(entry, field);
-    for (const refId of refIds) {
-      const refEntry = await env.getEntry(refId);
-      await Traverse(env, refEntry, fieldCache, traversedEntries);
-    }
-  }
-}
-
-async function TraverseFromURL(
-  env: Environment,
-  url: string,
-  fieldCache: ContentTypeFieldCache,
-  traversedEntries: IHash
-) {
-  const course_entries = await env.getEntries({ content_type: "course" });
-  const this_course_entry: Entry = course_entries.items.find(
-    (e) => GetFieldValue(e, "slug") === url
-  );
-  if (!this_course_entry) {
-    console.log(`No course with URL='${url}' found`);
-    return;
-  }
-  await Traverse(env, this_course_entry, fieldCache, traversedEntries);
-}
 
 async function ExportTranslations(
   env: Environment,
@@ -92,11 +43,11 @@ async function ExportTranslations(
 ) {
   const fieldCache = new ContentTypeFieldCache(env);
   await fieldCache.Init();
-  let traversedEntries: IHash = {};
-  await TraverseFromURL(env, initial_url, fieldCache, traversedEntries);
+  const traversalService = new TraversalService(env, fieldCache);
+  await traversalService.TraverseFromURL(initial_url);
   let serEntries = [];
-  for (const id in traversedEntries) {
-    const oneEntry = traversedEntries[id];
+  for (const id in traversalService.traversedEntries) {
+    const oneEntry = traversalService.traversedEntries[id];
     const typeId = getTypeIdFromEntry(oneEntry);
     const localizableTextFields = fieldCache.GetLocalizableTextFields(typeId);
     let serEntry = { fields: {}, entryId: id, typeId: typeId };
