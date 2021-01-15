@@ -41,8 +41,11 @@ async function ExportTranslations(
   initial_url: string,
   locale: string
 ) {
+  //initialize field information for all types in the environment
   const fieldCache = new ContentTypeFieldCache(env);
   await fieldCache.Init();
+
+  //traverse entries down the hierarchy, until there are no more outgoing links
   const traversalService = new TraversalService(env, fieldCache);
   await traversalService.TraverseFromURL(initial_url);
 
@@ -51,7 +54,7 @@ async function ExportTranslations(
     const typeId = getTypeIdFromEntry(oneEntry);
     const localizableTextFields = fieldCache.GetLocalizableTextFields(typeId);
     const localizableFieldIds = localizableTextFields.map((field) => field.id);
-    let serEntry = { fields: {}, entryId: oneEntry.sys.id, typeId: typeId };
+    let serEntry = { fields: {}, entryId: oneEntry.sys.id };
     localizableFieldIds.forEach((fieldId) => {
       const fieldValue = GetFieldValue(oneEntry, fieldId, locale);
       serEntry.fields[fieldId] = fieldValue;
